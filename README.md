@@ -213,7 +213,6 @@ The engine is fully functional and architecturally stable. It successfully perfo
 **Core achievements include:**
 <ul>
 <li>Correctness: Validated bit-exact key exchange and successful handshake completion.</li>
-<li>Stability: Zero crashes or memory leaks during sustained load testing.</li>
 <li>Architecture: Strict separation of OpenSSL API and GPU runtime for full library compliance.</li>
 <li>Performance: Asynchronous batching logic is implemented and operational, ready for multi-threaded deployment.</li>
 </ul>
