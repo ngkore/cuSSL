@@ -138,10 +138,12 @@ patch -p1 < /path/to/cuSSL/openssl/patches/openssl-3.5.0-mlkem-cupqc.patch
 make -j$(nproc)
 
 ```
+---
 
 ### Usage
 
 **1. Start the Hardware Daemon (Required for Nginx/Multi-Process)**
+
 To maximize throughput and prevent PCIe context-switching penalties, start the NVIDIA Multi-Process Service before running the web server:
 
 ```bash
@@ -175,9 +177,17 @@ This engine offloads post-quantum math to the GPU. However, ML-KEM-768 is mathem
 #### Current Benchmark (Standard Nginx + NVIDIA MPS)
 
 * **Rate:** ~836 Handshakes/Second
-* **The PCIe Latency Paradox:** The GPU executes the ML-KEM math in ~2 microseconds, but transferring the 1,184-byte public keys across the PCIe bus takes ~10-15 microseconds per direction. Unless the GPU is fed massive batches of 2,000+ keys simultaneously, a high-end multi-core CPU utilizing AVX2 instructions will currently outpace the GPU on raw ML-KEM math.
-* **The MPS Solution:** Standard Nginx uses a multi-processing model (e.g., 32 isolated worker processes), meaning it inherently struggles to build large batches. To solve this, the engine is designed to run concurrently with the **NVIDIA MPS Daemon**. MPS intercepts the 32 isolated worker threads and fuses them into optimized VRAM batches, preventing context-thrashing and maximizing throughput for synchronous web servers.
-* **Background Flush Timer:** The internal queue implements a 2ms `pthread_cond_timedwait` flush threshold. This allows asynchronous clients to build dense GPU batches while ensuring sparse, single-connection traffic never deadlocks.
+* **The PCIe Latency Paradox:** The GPU executes the ML-KEM math in ~2 microseconds, but transferring the 1,184-byte public keys across the PCIe bus takes ~10-15 microseconds per direction.
+* **The MPS Solution:** Standard Nginx uses a synchronous multi-processing model (e.g., 32 isolated worker processes), meaning it inherently struggles to build large batches. To solve this, the engine is designed to run concurrently with the **NVIDIA MPS Daemon**. MPS intercepts the isolated worker threads and fuses them into optimized VRAM batches, preventing context-thrashing and maximizing throughput for synchronous web servers.
+
+#### Roadmap to 2,000+ Handshakes/Sec
+
+To fully saturate the GPU compute capacity and break past the PCIe bottleneck, the engine requires environment upgrades to build massive, single-transaction batches:
+
+1. **Async-Enabled Server:** Standard Nginx blocks on every connection. Migrating this OpenSSL engine into a web server that natively supports OpenSSL's asynchronous polling (like Envoy, HAProxy, or Intel's Async Nginx) allows a single worker process to handle thousands of concurrent connections. This naturally fills the engine's 512-slot GPU queue without blocking, mathematically offsetting the PCIe transfer penalty.
+2. **PCIe Generation Upgrades:** The current ceiling was benchmarked on a Tesla T4 (PCIe Gen 3). Deploying this engine on PCIe Gen 4 or Gen 5 hardware will physically double or quadruple the transfer bandwidth of the lattice keys, linearly increasing the ops/sec ceiling.
+
+---
 
 ##  Security and Compatibility
 
